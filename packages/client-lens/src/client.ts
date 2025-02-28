@@ -70,8 +70,13 @@ export class LensClient {
     async createPublication(
         contentURI: string,
         onchain = false,
-        commentOn?: string
+        commentOn?: string,
     ): Promise<AnyPublicationFragment | null | undefined> {
+        if (process.env.DO_NOT_PUBLISH) {
+            elizaLogger.warn("DO_NOT_PUBLISH is set, skipping publication");
+            return {};
+        }
+
         try {
             if (!this.authenticated) {
                 await this.authenticate();
@@ -113,7 +118,7 @@ export class LensClient {
     }
 
     async getPublication(
-        pubId: string
+        pubId: string,
     ): Promise<AnyPublicationFragment | null> {
         if (this.cache.has(`lens/publication/${pubId}`)) {
             return this.cache.get(`lens/publication/${pubId}`);
@@ -129,7 +134,7 @@ export class LensClient {
 
     async getPublicationsFor(
         profileId: string,
-        limit = 50
+        limit = 50,
     ): Promise<AnyPublicationFragment[]> {
         const timeline: AnyPublicationFragment[] = [];
         let next: any | undefined = undefined;
@@ -148,7 +153,7 @@ export class LensClient {
             items.forEach((publication) => {
                 this.cache.set(
                     `lens/publication/${publication.id}`,
-                    publication
+                    publication,
                 );
                 timeline.push(publication);
             });
@@ -182,9 +187,9 @@ export class LensClient {
 
         items.map((notification) => {
             let item;
-            if ('publication' in notification) {
+            if ("publication" in notification) {
                 item = notification.publication;
-            } else if ('comment' in notification) {
+            } else if ("comment" in notification) {
                 item = notification.comment;
             } else {
                 return; // Skip notifications without the relevant properties
@@ -232,7 +237,7 @@ export class LensClient {
 
     async getTimeline(
         profileId: string,
-        limit = 10
+        limit = 10,
     ): Promise<AnyPublicationFragment[]> {
         try {
             if (!this.authenticated) {
@@ -258,7 +263,7 @@ export class LensClient {
                     if (timeline.length < limit && !item.root.isEncrypted) {
                         this.cache.set(
                             `lens/publication/${item.id}`,
-                            item.root
+                            item.root,
                         );
                         timeline.push(item.root as AnyPublicationFragment);
                     }
@@ -275,7 +280,7 @@ export class LensClient {
     }
 
     private async createPostOnchain(
-        contentURI: string
+        contentURI: string,
     ): Promise<BroadcastResult | undefined> {
         // gasless + signless if they enabled the lens profile manager
         if (this.authenticatedProfile?.signless) {
@@ -309,7 +314,7 @@ export class LensClient {
     }
 
     private async createPostMomoka(
-        contentURI: string
+        contentURI: string,
     ): Promise<BroadcastResult | undefined> {
         elizaLogger.log("createPostMomoka");
         // gasless + signless if they enabled the lens profile manager
@@ -344,7 +349,7 @@ export class LensClient {
 
     private async createCommentOnchain(
         contentURI: string,
-        commentOn: string
+        commentOn: string,
     ): Promise<BroadcastResult | undefined> {
         // gasless + signless if they enabled the lens profile manager
         if (this.authenticatedProfile?.signless) {
@@ -380,7 +385,7 @@ export class LensClient {
 
     private async createCommentMomoka(
         contentURI: string,
-        commentOn: string
+        commentOn: string,
     ): Promise<BroadcastResult | undefined> {
         // gasless + signless if they enabled the lens profile manager
         if (this.authenticatedProfile?.signless) {
@@ -388,7 +393,7 @@ export class LensClient {
                 {
                     commentOn,
                     contentURI,
-                }
+                },
             );
             return handleBroadcastResult(broadcastResult);
         }

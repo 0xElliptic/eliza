@@ -28,6 +28,10 @@ class TwitterManager {
         // Posting logic
         this.post = new TwitterPostClient(this.client, runtime);
 
+        console.log(
+            "twitterConfig.TWITTER_SEARCH_ENABLE",
+            twitterConfig.TWITTER_SEARCH_ENABLE,
+        );
         // Optional search logic (enabled if TWITTER_SEARCH_ENABLE is true)
         if (twitterConfig.TWITTER_SEARCH_ENABLE) {
             elizaLogger.warn("Twitter/X client running in a mode that:");

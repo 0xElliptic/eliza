@@ -983,6 +983,7 @@ export class AgentRuntime implements IAgentRuntime {
         callback?: HandlerCallback,
     ): Promise<void> {
         for (const response of responses) {
+            console.log("response", response.content);
             if (!response.content?.action) {
                 elizaLogger.warn("No action found in the response content.");
                 continue;

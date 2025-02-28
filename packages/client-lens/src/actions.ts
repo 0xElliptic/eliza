@@ -1,9 +1,10 @@
 import type { LensClient } from "./client";
-import type {
-    Content,
-    IAgentRuntime,
-    Memory,
-    UUID,
+import {
+    elizaLogger,
+    type Content,
+    type IAgentRuntime,
+    type Memory,
+    type UUID,
 } from "@elizaos/core";
 import { textOnly } from "@lens-protocol/metadata";
 import { createPublicationMemory } from "./memory";
@@ -32,7 +33,7 @@ export async function sendPublication({
     const publication = await client.createPublication(
         contentURI,
         false, // TODO: support collectable settings
-        commentOn
+        commentOn,
     );
 
     if (publication) {

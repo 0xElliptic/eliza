@@ -14,6 +14,14 @@ import {
 import { stringToUuid } from "@elizaos/core";
 import type { ClientBase } from "./base";
 import { buildConversationThread, sendTweet, wait } from "./utils.ts";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+// import utc from 'dayjs/plugin/utc' // ES 2015
+
+import timezone from "dayjs/plugin/timezone";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 const twitterSearchTemplate =
     `{{timeline}}
@@ -62,34 +70,47 @@ export class TwitterSearchClient {
         this.engageWithSearchTerms().then();
         const randomMinutes = Math.floor(Math.random() * (120 - 60 + 1)) + 60;
         elizaLogger.log(
-            `Next twitter search scheduled in ${randomMinutes} minutes`
+            `Next twitter search scheduled in ${randomMinutes} minutes`,
         );
         setTimeout(
             () => this.engageWithSearchTermsLoop(),
-            randomMinutes * 60 * 1000
+            randomMinutes * 60 * 1000,
         );
     }
 
     private async engageWithSearchTerms() {
         elizaLogger.log("Engaging with search terms");
+        console.log("Engaging with search terms");
         try {
-            const searchTerm = [...this.runtime.character.topics][
-                Math.floor(Math.random() * this.runtime.character.topics.length)
-            ];
-
-            elizaLogger.log("Fetching search tweets");
+            // const searchTerm = [...this.runtime.character.topics][
+            //     Math.floor(Math.random() * this.runtime.character.topics.length)
+            // ];
+            // const searchTerm = elizaLogger.log("Fetching search tweets");
             // TODO: we wait 5 seconds here to avoid getting rate limited on startup, but we should queue
             await new Promise((resolve) => setTimeout(resolve, 5000));
+
+            const searchTerm = `(from:0xGumshoe OR from:TweetTeevee8 OR from:SeiLessAIntern OR from:Chyan OR from:0xsolito OR from:PanterAIDAO OR from:cr0w_agent OR from:aixbt_agent OR from:0xElliptic OR from:virtuals_io OR from:aixbt_agent OR from:GAME_Virtuals OR from:SamIsMoving OR from:luna_virtuals OR from:Vader_AI_ OR from:AcolytAI OR from:ApeAIDAO) -filter:links -filter:replies since:${dayjs.utc().format("YYYY-MM-DD")}`;
+
+            elizaLogger.log(
+                `Fetching search tweets. searchTerm = ${searchTerm}`,
+            );
+
             const recentTweets = await this.client.fetchSearchTweets(
                 searchTerm,
                 20,
-                SearchMode.Top
+                SearchMode.Top,
             );
             elizaLogger.log("Search tweets fetched");
 
-            const homeTimeline = await this.client.fetchHomeTimeline(50);
+            const homeTimeline = await this.client
+                .fetchHomeTimeline(50)
+                .catch(() => {
+                    elizaLogger.warn("Failed to fetch home timeline");
+                    return [];
+                });
+            elizaLogger.log("Home timeline fetched");
 
-            await this.client.cacheTimeline(homeTimeline);
+            // await this.client.cacheTimeline(homeTimeline);
 
             const formattedHomeTimeline =
                 `# ${this.runtime.character.name}'s Home Timeline\n\n` +
@@ -104,23 +125,28 @@ export class TwitterSearchClient {
                 .sort(() => Math.random() - 0.5)
                 .slice(0, 20);
 
+            // elizaLogger.log("Got sliced tweets", slicedTweets.length);
+
             if (slicedTweets.length === 0) {
                 elizaLogger.log(
                     "No valid tweets found for the search term",
-                    searchTerm
+                    searchTerm,
                 );
                 return;
             }
 
+            elizaLogger.log("slicedTweets", slicedTweets);
+            elizaLogger.log("homeTimeline", homeTimeline);
+
             const prompt = `
   Here are some tweets related to the search term "${searchTerm}":
 
-  ${[...slicedTweets, ...homeTimeline]
+  ${[...slicedTweets]
       .filter((tweet) => {
           // ignore tweets where any of the thread tweets contain a tweet by the bot
           const thread = tweet.thread;
           const botTweet = thread.find(
-              (t) => t.username === this.twitterUsername
+              (t) => t.username === this.twitterUsername,
           );
           return !botTweet;
       })
@@ -129,17 +155,19 @@ export class TwitterSearchClient {
     ID: ${tweet.id}${tweet.inReplyToStatusId ? ` In reply to: ${tweet.inReplyToStatusId}` : ""}
     From: ${tweet.name} (@${tweet.username})
     Text: ${tweet.text}
-  `
+  `,
       )
       .join("\n")}
 
-  Which tweet is the most interesting and relevant for Ruby to reply to? Please provide only the ID of the tweet in your response.
+  Which tweet is the most interesting and relevant to reply to? Please provide only the ID of the tweet in your response.
   Notes:
     - Respond to English tweets only
     - Respond to tweets that don't have a lot of hashtags, links, URLs or images
     - Respond to tweets that are not retweets
     - Respond to tweets where there is an easy exchange of ideas to have with the user
     - ONLY respond with the ID of the tweet`;
+
+            elizaLogger.log("mostInterestingTweet", prompt);
 
             const mostInterestingTweetResponse = await generateText({
                 runtime: this.runtime,
@@ -151,7 +179,7 @@ export class TwitterSearchClient {
             const selectedTweet = slicedTweets.find(
                 (tweet) =>
                     tweet.id.toString().includes(tweetId) ||
-                    tweetId.includes(tweet.id.toString())
+                    tweetId.includes(tweet.id.toString()),
             );
 
             if (!selectedTweet) {
@@ -169,7 +197,7 @@ export class TwitterSearchClient {
 
             const conversationId = selectedTweet.conversationId;
             const roomId = stringToUuid(
-                conversationId + "-" + this.runtime.agentId
+                conversationId + "-" + this.runtime.agentId,
             );
 
             const userIdUUID = stringToUuid(selectedTweet.userId as string);
@@ -179,7 +207,7 @@ export class TwitterSearchClient {
                 roomId,
                 selectedTweet.username,
                 selectedTweet.name,
-                "twitter"
+                "twitter",
             );
 
             // crawl additional conversation tweets, if there are any
@@ -195,7 +223,7 @@ export class TwitterSearchClient {
                         ? stringToUuid(
                               selectedTweet.inReplyToStatusId +
                                   "-" +
-                                  this.runtime.agentId
+                                  this.runtime.agentId,
                           )
                         : undefined,
                 },
@@ -220,7 +248,7 @@ export class TwitterSearchClient {
             let tweetBackground = "";
             if (selectedTweet.isRetweet) {
                 const originalTweet = await this.client.requestQueue.add(() =>
-                    this.client.twitterClient.getTweet(selectedTweet.id)
+                    this.client.twitterClient.getTweet(selectedTweet.id),
                 );
                 tweetBackground = `Retweeting @${originalTweet.username}: ${originalTweet.text}`;
             }
@@ -230,7 +258,7 @@ export class TwitterSearchClient {
             for (const photo of selectedTweet.photos) {
                 const description = await this.runtime
                     .getService<IImageDescriptionService>(
-                        ServiceType.IMAGE_DESCRIPTION
+                        ServiceType.IMAGE_DESCRIPTION,
                     )
                     .describeImage(photo.url);
                 imageDescriptions.push(description);
@@ -275,7 +303,7 @@ export class TwitterSearchClient {
             }
 
             elizaLogger.log(
-                `Bot would respond to tweet ${selectedTweet.id} with: ${response.text}`
+                `Bot would respond to tweet ${selectedTweet.id} with: ${response.text}`,
             );
             try {
                 const callback: HandlerCallback = async (response: Content) => {
@@ -284,7 +312,7 @@ export class TwitterSearchClient {
                         response,
                         message.roomId,
                         this.twitterUsername,
-                        selectedTweet.id
+                        selectedTweet.id,
                     );
                     return memories;
                 };
@@ -296,7 +324,7 @@ export class TwitterSearchClient {
                 for (const responseMessage of responseMessages) {
                     await this.runtime.messageManager.createMemory(
                         responseMessage,
-                        false
+                        false,
                     );
                 }
 
@@ -308,7 +336,7 @@ export class TwitterSearchClient {
                     message,
                     responseMessages,
                     state,
-                    callback
+                    callback,
                 );
 
                 this.respondedTweets.add(selectedTweet.id);
@@ -316,7 +344,7 @@ export class TwitterSearchClient {
 
                 await this.runtime.cacheManager.set(
                     `twitter/tweet_generation_${selectedTweet.id}.txt`,
-                    responseInfo
+                    responseInfo,
                 );
 
                 await wait();

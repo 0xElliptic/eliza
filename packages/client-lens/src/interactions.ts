@@ -32,7 +32,7 @@ export class LensInteractionManager {
         public runtime: IAgentRuntime,
         private profileId: string,
         public cache: Map<string, any>,
-        private ipfs: StorjProvider
+        private ipfs: StorjProvider,
     ) {}
 
     public async start() {
@@ -47,7 +47,7 @@ export class LensInteractionManager {
             this.timeout = setTimeout(
                 handleInteractionsLoop,
                 Number(this.runtime.getSetting("LENS_POLL_INTERVAL") || 120) *
-                    1000 // Default to 2 minutes
+                    1000, // Default to 2 minutes
             );
         };
 
@@ -88,7 +88,7 @@ export class LensInteractionManager {
                 mention.by.id,
                 mention.by.metadata?.displayName ||
                     mention.by.handle?.localName,
-                "lens"
+                "lens",
             );
 
             const thread = await buildConversationThread({
@@ -97,24 +97,31 @@ export class LensInteractionManager {
                 publication: mention,
             });
 
-            function hasContent(metadata: any): metadata is { content: string } {
-                return metadata && typeof metadata.content === 'string';
+            function hasContent(
+                metadata: any,
+            ): metadata is { content: string } {
+                return metadata && typeof metadata.content === "string";
             }
 
             let memory: Memory;
             if (
-                (mention.__typename === 'Post' || mention.__typename === 'Comment' || mention.__typename === 'Quote') &&
+                (mention.__typename === "Post" ||
+                    mention.__typename === "Comment" ||
+                    mention.__typename === "Quote") &&
                 hasContent(mention.metadata)
             ) {
                 memory = {
-                    content: { text: mention.metadata.content, hash: mention.id },
+                    content: {
+                        text: mention.metadata.content,
+                        hash: mention.id,
+                    },
                     agentId: this.runtime.agentId,
                     userId,
                     roomId,
                 };
             } else {
                 memory = {
-                    content: { text: '[No Content]', hash: mention.id },
+                    content: { text: "[No Content]", hash: mention.id },
                     agentId: this.runtime.agentId,
                     userId,
                     roomId,
@@ -143,6 +150,11 @@ export class LensInteractionManager {
         memory: Memory;
         thread: AnyPublicationFragment[];
     }) {
+        // if (true) {
+        //     elizaLogger.info("skipping publication");
+        //     return;
+        // }
+
         if (publication.by.id === agent.id) {
             elizaLogger.info("skipping cast from bot itself", publication.id);
             return;
@@ -159,19 +171,19 @@ export class LensInteractionManager {
 
         const formattedTimeline = formatTimeline(
             this.runtime.character,
-            timeline
+            timeline,
         );
 
         function hasContent(metadata: any): metadata is { content: string } {
-            return metadata && typeof metadata.content === 'string';
+            return metadata && typeof metadata.content === "string";
         }
 
         const formattedConversation = thread
             .map((pub) => {
-                if ('metadata' in pub && hasContent(pub.metadata)) {
+                if ("metadata" in pub && hasContent(pub.metadata)) {
                     const content = pub.metadata.content;
                     return `@${pub.by.handle?.localName} (${new Date(
-                        pub.createdAt
+                        pub.createdAt,
                     ).toLocaleString("en-US", {
                         hour: "2-digit",
                         minute: "2-digit",
@@ -181,7 +193,7 @@ export class LensInteractionManager {
                     ${content}`;
                 }
                 return `@${pub.by.handle?.localName} (${new Date(
-                    pub.createdAt
+                    pub.createdAt,
                 ).toLocaleString("en-US", {
                     hour: "2-digit",
                     minute: "2-digit",
@@ -221,7 +233,7 @@ export class LensInteractionManager {
                     roomId: memory.roomId,
                     runtime: this.runtime,
                     publication,
-                })
+                }),
             );
         }
 
@@ -236,7 +248,7 @@ export class LensInteractionManager {
             shouldRespondResponse === "STOP"
         ) {
             elizaLogger.info(
-                `Not responding to publication because generated ShouldRespond was ${shouldRespondResponse}`
+                `Not responding to publication because generated ShouldRespond was ${shouldRespondResponse}`,
             );
             return;
         }
@@ -261,14 +273,14 @@ export class LensInteractionManager {
 
         if (this.runtime.getSetting("LENS_DRY_RUN") === "true") {
             elizaLogger.info(
-                `Dry run: would have responded to publication ${publication.id} with ${responseContent.text}`
+                `Dry run: would have responded to publication ${publication.id} with ${responseContent.text}`,
             );
             return;
         }
 
         const callback: HandlerCallback = async (
             content: Content,
-            _files: any[]
+            _files: any[],
         ) => {
             try {
                 if (memoryId && !content.inReplyTo) {
@@ -304,7 +316,7 @@ export class LensInteractionManager {
             memory,
             responseMessages,
             newState,
-            callback
+            callback,
         );
     }
 }

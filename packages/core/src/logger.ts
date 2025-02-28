@@ -1,4 +1,4 @@
-import pino, { type LogFn } from "pino";
+import pino, { levels, type LogFn } from "pino";
 import pretty from "pino-pretty";
 
 const customLevels: Record<string, number> = {
@@ -28,32 +28,34 @@ const createStream = () => {
 
 const defaultLevel = process?.env?.DEFAULT_LOG_LEVEL || "info";
 
+const logFile = process?.env?.LOG_FILE;
+
 const options = {
     level: defaultLevel,
     customLevels,
     hooks: {
         logMethod(
             inputArgs: [string | Record<string, unknown>, ...unknown[]],
-            method: LogFn
+            method: LogFn,
         ): void {
             const [arg1, ...rest] = inputArgs;
 
             if (typeof arg1 === "object") {
                 const messageParts = rest.map((arg) =>
-                    typeof arg === "string" ? arg : JSON.stringify(arg)
+                    typeof arg === "string" ? arg : JSON.stringify(arg),
                 );
                 const message = messageParts.join(" ");
                 return method.apply(this, [arg1, message]);
             } else {
                 const context = {};
                 const messageParts = [arg1, ...rest].map((arg) =>
-                    typeof arg === "string" ? arg : arg
+                    typeof arg === "string" ? arg : arg,
                 );
                 const message = messageParts
                     .filter((part) => typeof part === "string")
                     .join(" ");
                 const jsonParts = messageParts.filter(
-                    (part) => typeof part === "object"
+                    (part) => typeof part === "object",
                 );
 
                 Object.assign(context, ...jsonParts);
@@ -61,6 +63,24 @@ const options = {
                 return method.apply(this, [context, message]);
             }
         },
+    },
+    transport: {
+        targets: [
+            {
+                target: "pino/file",
+                options: { destination: logFile },
+                level: "trace",
+            },
+            {
+                target: "pino-pretty",
+                options: {
+                    colorize: true,
+                    translateTime: "yyyy-mm-dd HH:MM:ss",
+                    ignore: "pid,hostname",
+                },
+                level: "trace",
+            },
+        ],
     },
 };
 

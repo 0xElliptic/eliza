@@ -241,7 +241,10 @@ export class TwitterPostClient {
                 minMinutes;
             const delay = randomMinutes * 60 * 1000;
 
-            if (Date.now() > lastPostTimestamp + delay) {
+            if (
+                Date.now() > lastPostTimestamp + delay ||
+                process.env.PUSH_TWEET_IMMEDIATELY
+            ) {
                 await this.generateNewTweet();
             }
 
@@ -378,6 +381,12 @@ export class TwitterPostClient {
         content: string,
         tweetId?: string,
     ) {
+        if (process.env.DO_NOT_PUBLISH) {
+            elizaLogger.warn("DO_NOT_PUBLISH is set, skipping publication");
+            elizaLogger.info("Content:", content);
+            return {};
+        }
+
         try {
             const noteTweetResult = await client.requestQueue.add(
                 async () =>
@@ -409,6 +418,12 @@ export class TwitterPostClient {
         content: string,
         tweetId?: string,
     ) {
+        if (process.env.DO_NOT_PUBLISH) {
+            elizaLogger.warn("DO_NOT_PUBLISH is set, skipping publication");
+            elizaLogger.info("Content:", content);
+            return {};
+        }
+
         try {
             const standardTweetResult = await client.requestQueue.add(
                 async () =>
@@ -497,11 +512,57 @@ export class TwitterPostClient {
                 },
             );
 
+            const myRecentTweets = await this.client.fetchOwnPosts(8);
+
+            const formattedRecentTweets =
+                `# ${this.runtime.character.name}'s Recent Posts\n\n` +
+                myRecentTweets
+                    .slice(0, 8)
+                    .map((tweet) => {
+                        return `ID: ${tweet.id}\nText: ${tweet.text}\n---\n`;
+                    })
+                    .join("\n");
+
+            const homeTimeline = await this.client.fetchHomeTimeline(20);
+
+            const formattedHomeTimeline =
+                `# ${this.runtime.character.name}'s Home Timeline\n\n` +
+                homeTimeline
+                    .map((tweet) => {
+                        return `ID: ${tweet.id}\nFrom: ${tweet.name} (@${tweet.username})${tweet.inReplyToStatusId ? ` In reply to: ${tweet.inReplyToStatusId}` : ""}\nText: ${tweet.text}\n---\n`;
+                    })
+                    .join("\n");
+
+            const template = `
+# Areas of Expertise
+{{knowledge}}
+
+# About {{agentName}} (@{{twitterUserName}}):
+{{bio}}
+{{lore}}
+{{topics}}
+
+{{providers}}
+
+{{characterPostExamples}}
+
+{{postDirections}}
+
+${formattedRecentTweets}
+
+${formattedHomeTimeline}
+
+# Task: Generate a post in the voice and style and perspective of {{agentName}} @{{twitterUserName}}.
+Pick one or a few tweets, relevant to knowledge of {{agentName}}, combine and write a post about them, from the perspective of {{agentName}}. Do not add commentary or acknowledge this request, just write the post.
+${Math.random() > 0.25 ? `Prioritize posts that mention any $TICKER_SYMBOLS, but don't touch on the same topic as one of the recent posts of ${this.runtime.character.name} (tag maximum one ticker per post). Don't mention the same ticker twice in a row.` : "Do not post about particular tickers."} Don't use the same sentences structure as your previous posts. Always use new and fresh way of expressing your thoughts.
+Your response should be 1, 2, or 3 sentences (choose the length at random).
+Your response should not contain any questions. Brief, concise statements only. The total character count MUST be less than {{maxTweetLength}}. No emojis. Use \\n\\n (double spaces) between statements if there are multiple statements in your response.`;
+
+            console.log("template", template);
+
             const context = composeContext({
                 state,
-                template:
-                    this.runtime.character.templates?.twitterPostTemplate ||
-                    twitterPostTemplate,
+                template,
             });
 
             elizaLogger.debug("generate post prompt:\n" + context);
